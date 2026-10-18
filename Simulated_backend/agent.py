@@ -8,11 +8,14 @@ Run:  python agent.py      (server.py must already be running)
 import asyncio
 import os
 
+from langchain_core.messages import HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from mcp import ClientSession
+
 from dotenv import load_dotenv
 load_dotenv()
+
 try:  # the function was renamed in newer MCP SDK versions
     from mcp.client.streamable_http import streamable_http_client as http_client
 except ImportError:
@@ -57,6 +60,25 @@ def as_text(content) -> str:
     return "".join(p.get("text", "") if isinstance(p, dict) else str(p) for p in content)
 
 
+async def ask(agent, history: list, question: str) -> str:
+    """Run one user turn. `history` keeps EVERY message (including tool calls and tool results),
+    so the agent still knows what a tool returned (like a script_id) on the next turn."""
+    history.append(HumanMessage(question))
+    new_messages, final = [], ""
+    async for update in agent.astream({"messages": history}, stream_mode="updates"):
+        for data in update.values():
+            for m in (data or {}).get("messages", []):
+                new_messages.append(m)
+                for call in getattr(m, "tool_calls", None) or []:
+                    print(f"  -> {call['name']}({short(call['args'])})")
+                if m.type == "tool":
+                    print(f"  <- {m.name}: {short(m.content)}")
+                elif m.type == "ai" and m.content and not getattr(m, "tool_calls", None):
+                    final = as_text(m.content)
+    history.extend(new_messages)
+    return final
+
+
 async def main():
     rules = await fetch_server_instructions()
     client = MultiServerMCPClient({"laptop": {"url": MCP_URL, "transport": "streamable_http"}})
@@ -67,24 +89,12 @@ async def main():
     llm = ChatGoogleGenerativeAI(model=MODEL, temperature=0)
     agent = build_agent(llm, tools, f"{BASE_PROMPT}\n\nSERVER INSTRUCTIONS:\n{rules}")
 
-    history = []
+    history: list = []
     while True:
         question = input("\nYou> ").strip()
         if question.lower() in {"exit", "quit", ""}:
             break
-        history.append(("user", question))
-        final = ""
-        async for update in agent.astream({"messages": history}, stream_mode="updates"):
-            for data in update.values():
-                for m in (data or {}).get("messages", []):
-                    for call in getattr(m, "tool_calls", None) or []:
-                        print(f"  -> {call['name']}({short(call['args'])})")
-                    if m.type == "tool":
-                        print(f"  <- {m.name}: {short(m.content)}")
-                    elif m.type == "ai" and m.content and not getattr(m, "tool_calls", None):
-                        final = as_text(m.content)
-        print(f"\nAlexa+> {final}")
-        history.append(("assistant", final))
+        print(f"\nAlexa+> {await ask(agent, history, question)}")
 
 
 if __name__ == "__main__":

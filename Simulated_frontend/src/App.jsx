@@ -30,6 +30,7 @@ const API_BASE = 'http://127.0.0.1:8001';
 
 const QUICK_PROMPTS = [
   { icon: Eye, label: 'Screen Vision', prompt: 'What is on my screen right now? Summarize the key details.', accent: '#38bdf8' },
+  { icon: Cpu, label: 'Live GUI Action', prompt: 'Open YouTube and play the latest video from MrBeast.', accent: '#f43f5e' },
   { icon: BarChart3, label: 'Analyze CSV', prompt: 'Analyze sales.csv in my workspace and highlight the main trends.', accent: '#a855f7' },
   { icon: Globe, label: 'Web Research', prompt: 'Research current Indian EV market leaders and compare key numbers.', accent: '#2dd4bf' },
   { icon: Terminal, label: 'File Automation', prompt: 'Organize the files in my workspace into clean folders by file type.', accent: '#f59e0b' }
@@ -106,7 +107,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState({
     connected: false,
-    tools: ['ask_about_screen', 'research_topic', 'analyze_data', 'write_script', 'run_script'],
+    tools: ['ask_about_screen', 'interact_with_screen', 'research_topic', 'analyze_data', 'write_script', 'run_script'],
     workspace: '~/AlexaWorkspace'
   });
 
@@ -834,7 +835,47 @@ export default function App() {
 
                 {activeArtifact.tool === 'ask_about_screen' && (
                   <div className="p-4 rounded-xl bg-slate-950 border-2 border-cyan-400/70 text-sm text-slate-100 leading-relaxed whitespace-pre-wrap">
-                    {activeArtifact.data.text}
+                    {activeArtifact.data.text || activeArtifact.data.spoken_summary}
+                  </div>
+                )}
+
+                {}
+                {activeArtifact.tool === 'interact_with_screen' && (
+                  <div className="space-y-3">
+                    <div className="p-4 rounded-xl bg-slate-900 border-2 border-cyan-400/80 space-y-1.5">
+                      <div className="text-xs font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-1.5">
+                        <Cpu className="w-4 h-4" /> Live GUI Computer-Use Execution
+                      </div>
+                      {activeArtifact.data.screen_observation && (
+                        <p className="text-xs text-slate-300">
+                          <strong className="text-white">Observed Screen:</strong> {activeArtifact.data.screen_observation}
+                        </p>
+                      )}
+                      {activeArtifact.data.spoken_summary && (
+                        <p className="text-xs text-cyan-100 pt-1">{activeArtifact.data.spoken_summary}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="text-xs font-bold uppercase text-slate-300">Actions Performed on Host OS</div>
+                      {(activeArtifact.data.actions_executed || []).map((item, idx) => (
+                        <div
+                          key={idx}
+                          className={`p-3 rounded-xl border-2 text-xs font-mono flex items-start gap-2.5 ${
+                            item.status === 'ok'
+                              ? 'bg-emerald-950/50 border-emerald-400/70 text-emerald-200'
+                              : 'bg-rose-950/50 border-rose-400/70 text-rose-200'
+                          }`}
+                        >
+                          {item.status === 'ok' ? (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                          ) : (
+                            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                          )}
+                          <span>{item.detail}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
